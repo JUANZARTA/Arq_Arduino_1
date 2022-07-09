@@ -10,6 +10,11 @@ https://www.prometec.net/control-acceso-clave/
  This sketch prints "Hello World!" to the LCD
  and shows the time.
 
+//JAMES MUÑO
+//JULIANA CAMPO
+//STIVEN GOMEZ
+//JUAN ZARTA
+
   The circuit:
  * LCD RS pin to digital pin 12
  * LCD Enable pin to digital pin 11
