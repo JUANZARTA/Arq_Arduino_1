@@ -1,0 +1,231 @@
+/*
+ *  ENTREGABLE MAQUINA DE ESTADO FINITO - ARQUITECTURA COMPUTACIONAL 
+ *  UNIVERCIDAD DEL CAUCA - INGENIERIA DE SISTEMAS
+ *  
+ *  MAQUINAS DE ESTADO FINITO USANDO SENSOR DE TEMPERATURA ANALOGO COMO ENTRADA
+ *  REALIZADO POR:
+ *  - JAMES MUÑOZ SOSCUE - jamesmunozs@unicauca.edu.co
+ *  - JULIANA CAMPO
+ *  - STIVEN GOMEZ
+ *  - JUAN ZARTA 
+ */
+
+// inclucion de librerias necesarias
+#include "AsyncTaskLib.h"
+#include <LiquidCrystal.h>
+
+#define DEBUG(a) Serial.print(millis()); Serial.print(": "); Serial.println(a); // definicion del serial debug
+
+
+// pines para LCD
+const int rs = 12, en = 11, d4 = 31, d5 = 32, d6 = 33, d7 = 34;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+// Variables para el sensor de luz
+#define pin_photo A0
+int photo_value = 0;
+void read_photoresistor(void);
+
+// VAriables para el sensor de temperatura
+#define pin_temp A1
+#define beta 4090
+#define resistance 10
+float temp_value = 0.0;
+float temperatura = 0.0;
+void read_temperature(void);
+
+
+//variables para el control del buzzer analogico
+#define pin_buzz 8
+#define NOTE_B6  1976
+#define NOTE_C7  2093
+#define NOTE_CS7 2217
+#define NOTE_D7  2349
+int duraciones[] = { 8, 8, 4, 4 };    // array con la duracion de cada nota
+int melodia[] = { NOTE_B6, NOTE_C7, NOTE_CS7, NOTE_D7 };//// array con las notasa a reproducir
+
+// Definiciones de las tareas asincronas
+AsyncTask asyncTaskTemp(2000, true, read_temperature);
+AsyncTask asyncTaskPhoto(1000, true,read_photoresistor);
+
+// definicion de los pines para el LEDrgb
+int ledRojo=23;    // pin para el LED rojo *** cambiar pines del led a pwm para rgb completo en analogo
+int ledVerde=24;   // pin para el LED verde
+int ledAzul=25;    // pin para el LED azul
+
+// enumerador de los estados finitos 
+enum estado
+{
+  estado_A,
+  estado_B,
+  estado_C,
+  estado_D
+};
+
+estado currentState; // Variable global para control de estados
+
+void read_photoresistor()// Funcion encargada de leer y procesar la informacion del sensor de luz
+{
+  photo_value = analogRead(pin_photo);// se lee en el pin analogo de el sensor
+  lcd.setCursor(0, 0);
+  lcd.print("PHOTO:");
+  lcd.print(photo_value); // se muestra en pantalla el valor arrojado por el sensor
+}
+
+void read_temperature()// Funcion encargada de leer y procesar la informacion del sensor de temperatura
+{
+  // se usa la sigiente formula para convertir la informacion dada por el sensor en grados centigrados
+  long a =1023 - analogRead(pin_temp);
+  temperatura = beta /(log((1025.0 * 10 / a - 10) / 10) + beta / 298.0) - 273.0;
+  lcd.setCursor(0, 1);
+  lcd.print("temp:");
+  lcd.print(temperatura); // se muestra en pantalla la temperatura dada por la convercion del valor del sensor
+}
+
+void setup()
+{
+  Serial.begin(9600);
+  Serial.println("inicio");// se inicia el serial para debug
+
+  // inicializacion del lcd
+  lcd.begin(16, 2);
+  lcd.clear();
+  
+  //se inicializan los pines del led  y buzzer como salidas
+  //leds
+  pinMode(ledRojo,OUTPUT);
+  pinMode(ledVerde,OUTPUT);
+  pinMode(ledAzul,OUTPUT);
+  //buzzer
+  pinMode(pin_buzz,OUTPUT);
+
+  currentState =  estado::estado_A; // se inicializa la maquina en estado A
+
+// inicio de las tareas asincronas 
+  asyncTaskTemp.Start();
+  asyncTaskPhoto.Start();
+ 
+ 
+}
+
+void loop()
+{
+  
+   actualizar_estado(); // actualiza la maquina de estados segun la entrada de temperatura 
+
+   // se actualizan las tareas asincronas
+  asyncTaskTemp.Update();
+  asyncTaskPhoto.Update();
+
+ 
+  }
+   
+void actualizar_estado() // se hace la seleccion de funciones a realizar segun el estado actual
+{
+  switch (currentState)
+  {
+    case estado::estado_A: funcion_A();   break;
+    case estado::estado_B: funcion_B();   break;
+    case estado::estado_C: funcion_C();   break;
+    case estado::estado_D: funcion_D();   break;
+    default: break;
+  }
+}
+
+void funcion_A(){ // funciones de maquina en estado A
+  digitalWrite(ledRojo,LOW);
+  digitalWrite(ledAzul,HIGH);
+  digitalWrite(ledVerde,LOW); // led en azul
+
+  lcd.setCursor(12, 0);
+  Serial.println(" maquina en estado A"); // se imprime en el debug el estado actual
+  lcd.print("A");// se imprime en pantalla el indicador de estado
+  
+  if(temperatura > 26.0){
+     currentState = estado::estado_B; // se cambia a estado B si se cumple la condicion
+    }
+  }
+ 
+void funcion_B(){  // funciones de maquina en estado B
+  digitalWrite(ledRojo,LOW);
+  digitalWrite(ledAzul,LOW);
+  digitalWrite(ledVerde,HIGH); // led en azul
+  
+  lcd.setCursor(12, 0);
+  Serial.println(" maquina en estado B"); // se imprime en el debug el estado actual
+  lcd.print("B"); // se imprime en pantalla el indicador de estado
+   
+  if(temperatura > 29.0){
+     currentState = estado::estado_C; // se cambia a estado C si se cumple la condicion
+     }
+  if(temperatura <= 26.0){
+     currentState = estado::estado_A; // se cambia a estado A si se cumple la condicion
+     }
+  }
+
+
+void funcion_C(){  // funciones de maquina en estado C
+  digitalWrite(ledRojo,HIGH);
+  digitalWrite(ledAzul,LOW);
+  digitalWrite(ledVerde,LOW); // led en azul
+  
+  lcd.setCursor(12, 0);
+  Serial.println(" maquina en estado C"); // se imprime en el debug el estado actual
+  lcd.print("C"); // se imprime en pantalla el indicador de estado
+  
+  if(temperatura > 34.0){
+     currentState = estado::estado_D;  // se cambia a estado D si se cumple la condicion
+  }
+  if(temperatura <= 29.0){
+     currentState = estado::estado_B;  // se cambia a estado B si se cumple la condicion
+  }
+  }
+ 
+ 
+void funcion_D(){  // funciones de maquina en estado D o alarma
+  digitalWrite(ledRojo,LOW);
+  digitalWrite(ledAzul,HIGH);
+  digitalWrite(ledVerde,LOW); // led en azul
+  delay(200);
+  digitalWrite(ledRojo,HIGH);
+  digitalWrite(ledAzul,LOW);
+  digitalWrite(ledVerde,LOW);// led rojo
+  
+  lcd.setCursor(12, 0);
+  Serial.println(" maquina en estado D"); // se imprime en el debug el estado actual
+  lcd.print("D"); // se imprime en pantalla el indicador de estado
+
+  sonar_buzz(); // se hace sonar el buzzer en señal de alarma
+  secuencia_led(); // se muestra una secuencia de led en rojo y azul en señal de alarma
+  delay(1000); // se da tiempo de espera para reset es estado B 
+  currentState = estado::estado_B; // se establece la maquina en estado B
+  }
+  
+void sonar_buzz(){ // funcion encargada de hacer sonar el buzzer
+  for (int i = 0; i < 3; i++) {      // bucle repite 4 veces, 1 por cada nota
+      int duracion = 1000 / duraciones[i];    // duracion de la nota en milisegundos
+      tone(pin_buzz, melodia[i], duracion);  // ejecuta el tono con la duracion
+      int pausa = duracion * 1.30;      // calcula pausa
+      delay(pausa);         // demora con valor de pausa
+      noTone(pin_buzz);        // detiene reproduccion de tono
+    }
+}
+
+ void secuencia_led(){  //secuencia de led intercalada en azul y rojo
+  digitalWrite(ledRojo,HIGH);
+  digitalWrite(ledAzul,LOW);
+  digitalWrite(ledVerde,LOW);
+         delay(200);
+ digitalWrite(ledRojo,LOW);
+  digitalWrite(ledAzul,HIGH);
+  digitalWrite(ledVerde,LOW);
+delay(200);
+ digitalWrite(ledRojo,HIGH);
+  digitalWrite(ledAzul,LOW);
+  digitalWrite(ledVerde,LOW);
+         delay(200);
+ digitalWrite(ledRojo,LOW);
+  digitalWrite(ledAzul,HIGH);
+  digitalWrite(ledVerde,LOW);
+        }
+//FIN DEL PROGRAMA
